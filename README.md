@@ -37,3 +37,14 @@ The intended eventual architecture separates global state (LabRunner) from local
 - `src/labrunner/pueue.py`: Contains the `PueueAdapter` used to safely interface with the local Pueue daemon.
 - `docs/`: Evaluation, design, and how-to documentation for Phase 1.
 - `tests/pueue/`: `pytest` integration test suite mapping LabRunner requirements to Pueue behavior.
+
+## Dependencies
+
+- Python >= 3.12
+- `pytest` (for testing)
+- `pyyaml` (for YAML parsing)
+
+To set up your environment, simply install these requirements:
+```bash
+python3 -m pip install -r requirements.txt
+```
