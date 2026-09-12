@@ -32,6 +32,16 @@ The intended eventual architecture separates global state (LabRunner) from local
 2. **Pueue Binaries**: Download the `pueue` and `pueued` binaries and place them in `bin/` in the project root. Ensure they are executable.
 3. **Run Tests**: Execute `PYTHONPATH=src PATH="$PWD/bin:$PATH" pytest tests/pueue/` to run all integration tests safely in isolated ephemeral daemon contexts.
 
+### Running the Example
+
+We provide a simple example script to verify that `LabRunner` and `Pueue` are functioning correctly together. This script submits a basic task (which sleeps, echoes a message, and creates a small file) and waits for its completion.
+
+1. Ensure the `pueued` daemon is running (e.g., `pueued -d` or in a separate terminal).
+2. Run the example script:
+   ```bash
+   PYTHONPATH=src PATH="$PWD/bin:$PATH" python examples/simple_test.py
+   ```
+
 ## Project Structure
 
 - `src/labrunner/pueue.py`: Contains the `PueueAdapter` used to safely interface with the local Pueue daemon.

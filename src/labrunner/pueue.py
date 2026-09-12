@@ -167,14 +167,27 @@ class PueueAdapter:
         start_time = None
         end_time = None
 
+        # Common fields in newer pueue versions are at the top level
+        if "start" in task_data:
+            start_time = task_data.get("start")
+        if "end" in task_data:
+            end_time = task_data.get("end")
+
         if isinstance(raw_state, dict):
             if "Done" in raw_state:
                 done_info = raw_state["Done"]
-                start_time = done_info.get("start")
-                end_time = done_info.get("end")
-                result = done_info.get("result", {})
 
-                if result == "Success":
+                # In newer pueue versions, "Done" might just map to a string directly (e.g. "Success")
+                if isinstance(done_info, str):
+                    result = done_info
+                else:
+                    if start_time is None and "start" in done_info:
+                        start_time = done_info.get("start")
+                    if end_time is None and "end" in done_info:
+                        end_time = done_info.get("end")
+                    result = done_info.get("result", done_info)
+
+                if result == "Success" or done_info == "Success":
                     state = TaskState.SUCCEEDED
                     exit_code = 0
                 elif isinstance(result, dict) and "FailedToExecute" in result:
@@ -184,11 +197,14 @@ class PueueAdapter:
                     exit_code = result["Failed"]
                 elif result == "Killed" or (isinstance(result, dict) and "Killed" in result):
                     state = TaskState.CANCELLED
+                elif isinstance(result, dict) and "Signaled" in result:
+                    state = TaskState.CANCELLED
                 else:
                     state = TaskState.FAILED
             elif "Running" in raw_state:
                 state = TaskState.RUNNING
-                start_time = raw_state["Running"].get("start")
+                if start_time is None and isinstance(raw_state["Running"], dict) and "start" in raw_state["Running"]:
+                    start_time = raw_state["Running"].get("start")
             elif "Queued" in raw_state:
                 state = TaskState.QUEUED
             elif "Paused" in raw_state:
@@ -197,12 +213,16 @@ class PueueAdapter:
                 state = TaskState.STASHED
             else:
                 state = TaskState.FAILED
+        elif raw_state == "Running":
+            state = TaskState.RUNNING
         elif raw_state == "Queued":
             state = TaskState.QUEUED
         elif raw_state == "Paused":
             state = TaskState.PAUSED
         elif raw_state == "Stashed":
             state = TaskState.STASHED
+        elif raw_state == "Locked":
+            state = TaskState.QUEUED
         else:
             state = TaskState.FAILED
 
@@ -228,12 +248,48 @@ class PueueAdapter:
 
         return TaskLogs(id=task_id, output=res.stdout)
 
-    def cancel(self, task_id: int) -> None:
-        self.status(task_id)
+    def cancel(self, task_id: int, max_retries: int = 5, delay_sec: float = 0.2) -> None:
+        import time
+        res = None
+        for attempt in range(max_retries):
+            # Check current status; if already terminal, no need to kill
+            task_status = self.status(task_id)
+            if task_status.state in (TaskState.SUCCEEDED, TaskState.FAILED, TaskState.CANCELLED):
+                return
 
-        res = self._run_cli(["kill", str(task_id)], check=False)
-        if res.returncode != 0:
-            raise CancellationFailed(f"Failed to cancel task {task_id}: {res.stderr}")
+            res = self._run_cli(["kill", str(task_id)], check=False)
+
+            if res.returncode == 0:
+                break
+
+            error_msg = res.stdout.strip()
+            race_msg = f"The command failed for tasks: {task_id}"
+
+            if res.returncode == 1 and race_msg in error_msg:
+                # Re-verify status; the task may have crashed or completed rapidly
+                current_status = self.status(task_id)
+                if current_status.state not in (TaskState.QUEUED, TaskState.RUNNING):
+                    break
+
+                if attempt < max_retries - 1:
+                    time.sleep(delay_sec)
+                    continue
+
+            break
+
+        # Verify postcondition instead of purely relying on return code
+        for _ in range(25):
+            status = self.status(task_id)
+            if status.state in (TaskState.SUCCEEDED, TaskState.FAILED, TaskState.CANCELLED):
+                return
+            time.sleep(0.2)
+
+        raise CancellationFailed(
+            f"Failed to cancel task {task_id}: "
+            f"pueue kill returned {res.returncode if res else 'N/A'}; "
+            f"task status is {self.status(task_id).state}; "
+            f"stdout: {res.stdout if res else 'N/A'}; stderr: {res.stderr if res else 'N/A'}"
+        )
 
     def remove(self, task_id: int) -> None:
         self.status(task_id)
