@@ -110,6 +110,8 @@ def register_dataset(dataset_root: Path) -> Tuple[DatasetManifest, List[str]]:
                  skipped.append(str(Path(p).relative_to(dataset_root)))
 
         for file in files:
+            if file in (".labrunner_manifest.txt", ".labrunner_metadata.json"):
+                continue
             filepath = Path(root) / file
             rel_path = str(filepath.relative_to(dataset_root))
 
@@ -162,6 +164,8 @@ def fast_check_dataset(dataset_root: Path, metadata_filepath: Path) -> None:
         dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(root, d))]
 
         for file in files:
+            if file in (".labrunner_manifest.txt", ".labrunner_metadata.json"):
+                continue
             filepath = Path(root) / file
             rel_path = str(filepath.relative_to(dataset_root))
 
@@ -228,6 +232,8 @@ def verify_dataset(dataset_root: Path, manifest_filepath: Path) -> None:
         dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(root, d))]
 
         for file in files:
+            if file in (".labrunner_manifest.txt", ".labrunner_metadata.json"):
+                continue
             filepath = Path(root) / file
             rel_path = str(filepath.relative_to(dataset_root))
 
