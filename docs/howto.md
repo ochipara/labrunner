@@ -87,3 +87,56 @@ Once an experiment has successfully completed and LabRunner has secured all resu
 ```python
 adapter.remove(task_id)
 ```
+
+## 8. Running a Job with `runner.sh` (Phase 2)
+
+LabRunner now includes a full end-to-end CLI wrapper (`runner.sh`) that automates experiment submission, dataset resolution, and tracking.
+
+**1. Create an Experiment Spec**
+Write an `experiment.yaml` defining the job requirements:
+```yaml
+schema_version: 1
+name: "My ResNet Experiment"
+source:
+  repository: "git@github.com:my-org/my-repo.git"
+command:
+  - "python"
+  - "train.py"
+  - "--data-dir"
+  - "${{ datasets.imagenet.path }}"
+seed: 42
+resources:
+  accelerator: "nvidia.com/gpu"
+  gpus: 1
+datasets:
+  - name: "imagenet"
+    identity: "imagenet-2012-v1"
+```
+
+**2. Register Datasets (First Time Only)**
+```bash
+./runner.sh dataset register /data/datasets/imagenet --name imagenet
+```
+
+**3. Run the Job**
+```bash
+./runner.sh run experiment.yaml
+```
+
+**4. Check Job Status**
+List all recent jobs:
+```bash
+./runner.sh status
+```
+
+**5. View Logs**
+Live-tail the outputs of a running job:
+```bash
+./runner.sh logs <run_id> -f
+```
+
+**6. Inspect Output**
+View the generated output artifacts and metrics:
+```bash
+./runner.sh inspect <run_id>
+```
